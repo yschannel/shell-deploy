@@ -32,8 +32,9 @@ check_system() {
 check_dependencies() {
     local tool
     local answer
-    local -a required_tools=(g++ make curl)
+    local -a required_tools=(g++ make curl ss flock)
     local -a missing_tools=()
+    local -a missing_packages=()
 
     log_info "正在检查项目依赖......"
 
@@ -43,6 +44,17 @@ check_dependencies() {
         else
             log_info "缺少 $tool"
             missing_tools+=("$tool")
+	    case "$tool" in
+		ss)
+		    missing_packages+=(iproute2)
+		    ;;
+		flock)
+		    missing_packages+=(util-linux)
+		    ;;
+		*)
+		    missing_packages+=("$tool")
+		    ;;
+	    esac
         fi
     done
 
@@ -79,7 +91,7 @@ check_dependencies() {
         return 1
     fi
 
-    if ! sudo apt-get install -y "${missing_tools[@]}"; then
+    if ! sudo apt-get install -y "${missing_packages[@]}"; then
         log_error "依赖安装失败，初始化停止"
         return 1
     fi
@@ -160,7 +172,7 @@ collect_configuration() {
 		data_input="${data_input:-./data}"
 
 		if [[ "$data_input" == /* ]]; then
-		    DATA_DIR="data_input"
+		    DATA_DIR="$data_input"
 		else
 		    DATA_DIR="$PROJECT_ROOT/$data_input"
 		fi
@@ -237,7 +249,7 @@ prepare_project_files() {
 
     # 创建正式配置，如果目标已存在， ln 会失败，不会覆盖。
     if ! ln -- "$temp_file" "$config_file"; then
-        rm -f -- "temp_file"
+        rm -f -- "$temp_file"
 	log_error "无法生成配置文件，目标可能已经存在或目录权限不足"
 	return 1
     fi
